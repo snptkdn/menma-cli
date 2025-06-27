@@ -100,9 +100,12 @@ if (command === 'add') {
 	appProps = { ...appProps, showCount: cli.flags.count };
 }
 
-// For testing purposes, bypass TTY check temporarily
-if (process.env.NODE_ENV === 'test' || !process.stdin.isTTY) {
-	// Non-interactive mode for testing
+// Check if command requires interactive mode
+const interactiveCommands = ['add', 'ls'];
+const nonInteractiveCommands = ['open', 'recent', 'tags', 'stats'];
+
+if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' || !process.stdin.isTTY) {
+	// Non-interactive mode
 	if (command === 'ls') {
 		const { loadConfig } = await import('./utils/configLoader.js');
 		const { listFiles } = await import('./utils/fileScanner.js');
@@ -290,10 +293,16 @@ if (process.env.NODE_ENV === 'test' || !process.stdin.isTTY) {
 			console.error(`Error: ${error.message}`);
 		}
 		process.exit(0);
-	} else {
-		console.error('Error: Interactive mode not available. Only "ls", "open", "recent", "tags", and "stats" commands supported in non-TTY mode.');
+	} else if (interactiveCommands.includes(command)) {
+		console.error('Error: Interactive mode not available in this environment.');
 		process.exit(1);
 	}
 } else {
-	render(<App {...appProps} />);
+	// Interactive mode for add and ls commands only
+	if (interactiveCommands.includes(command)) {
+		render(<App {...appProps} />);
+	} else {
+		console.error('Error: This command should run in non-interactive mode.');
+		process.exit(1);
+	}
 }
