@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Text, Box } from 'ink';
 import { loadConfig } from './utils/configLoader.js';
 import { generateFile, openFile } from './utils/fileGenerator.js';
 import { listFiles } from './utils/fileScanner.js';
 import { getSmartSuggestions } from './utils/accessTracker.js';
+import { moveToTrash } from './utils/trash.js';
 import FormatSelector from './components/FormatSelector.js';
 import TagInput from './components/TagInput.js';
 import FileList from './components/FileList.js';
@@ -139,6 +140,27 @@ export default function App({ command, title, project, filters = {}, count = 5 }
 		}
 	};
 
+	// Handle file trash (ls mode)
+	const handleFileTrash = useCallback(async (file) => {
+		if (!config) {
+			return;
+		}
+		try {
+			await moveToTrash(file.filePath, config.baseDir);
+			// Reload file list after trashing
+			if (command === 'ls') {
+				await loadFileList(config);
+			} else if (command === 'recent') {
+				await loadRecentFiles(config);
+			} else if (command === 'smart') {
+				await loadSmartSuggestions(config);
+			}
+		} catch (err) {
+			setError(`ファイルをゴミ箱に移動できませんでした: ${err.message}`);
+			setStep(STEPS.ERROR);
+		}
+	}, [config, command, loadFileList, loadRecentFiles, loadSmartSuggestions]);
+
 	// Render based on current step
 	switch (step) {
 		case STEPS.LOADING:
@@ -200,10 +222,11 @@ export default function App({ command, title, project, filters = {}, count = 5 }
 
 		case STEPS.FILE_LIST:
 			return (
-				<FileList 
-					files={files} 
+				<FileList
+					files={files}
 					filters={['recent', 'smart'].includes(command) ? {} : filters}
 					onSelect={handleFileSelect}
+					onDelete={handleFileTrash}
 					title={
 						command === 'recent' ? `📅 Recent ${count} files` :
 						command === 'smart' ? `🧠 Smart suggestions (${count} files)` :

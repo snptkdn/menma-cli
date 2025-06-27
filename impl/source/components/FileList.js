@@ -1,5 +1,5 @@
-import { Text, Box } from 'ink';
-import SelectInput from 'ink-select-input';
+import { useState, useEffect } from 'react';
+import { Text, Box, useInput, useApp } from 'ink';
 import { padString, truncateString } from '../utils/textWidth.js';
 
 /**
@@ -29,7 +29,7 @@ function createFileLabel(file) {
 	const tags = file.tags.length > 0 ? file.tags.slice(0, 2).join(', ') : 'no tags';
 	const tagsDisplay = truncateString(`[${tags}]`, 20);
 	const date = formatDate(file.createdAt);
-	
+
 	// Format: "Title                    | Project     | [tags]         | 2023/12/01 10:30"
 	return `${padString(title, 32)} | ${padString(project, 17)} | ${padString(tagsDisplay, 22)} | ${date}`;
 }
@@ -40,9 +40,58 @@ function createFileLabel(file) {
  * @param {import('../utils/fileScanner.js').FileInfo[]} props.files - Array of file information
  * @param {Object} props.filters - Active filters
  * @param {function(import('../utils/fileScanner.js').FileInfo): void} props.onSelect - Callback when file is selected
+ * @param {function(import('../utils/fileScanner.js').FileInfo): void} [props.onDelete] - Callback when file is deleted
  * @param {string} [props.title] - Custom title for the list
  */
-export default function FileList({ files, filters, onSelect, title }) {
+export default function FileList({ files, filters, onSelect, onDelete, title }) {
+
+	const [selectedIndex, setSelectedIndex] = useState(0);
+	const [showConfirm, setShowConfirm] = useState(false);
+	const { exit } = useApp();
+
+	// Handle keyboard input
+	useInput((input, key) => {
+		if (showConfirm) {
+			if (key.return || input === 'y' || input === 'Y') {
+				if (onDelete && files[selectedIndex]) {
+					onDelete(files[selectedIndex]);
+				}
+				setShowConfirm(false);
+			} else if (key.escape || input === 'n' || input === 'N') {
+				setShowConfirm(false);
+			}
+			return;
+		}
+
+		// Key handling
+		if (input === 'd') {
+			if (files.length > 0 && onDelete) {
+				setShowConfirm(true);
+			}
+		} else if (input === 'j') {
+			if (selectedIndex < files.length - 1) {
+				setSelectedIndex(selectedIndex + 1);
+			}
+		} else if (input === 'k') {
+			if (selectedIndex > 0) {
+				setSelectedIndex(selectedIndex - 1);
+			}
+		} else if (key.upArrow) {
+			if (selectedIndex > 0) {
+				setSelectedIndex(selectedIndex - 1);
+			}
+		} else if (key.downArrow) {
+			if (selectedIndex < files.length - 1) {
+				setSelectedIndex(selectedIndex + 1);
+			}
+		} else if (key.return) {
+			if (files[selectedIndex]) {
+				onSelect(files[selectedIndex]);
+			}
+		} else if (key.ctrl && input === 'c') {
+			exit();
+		}
+	});
 	if (files.length === 0) {
 		return (
 			<Box flexDirection="column">
@@ -60,22 +109,13 @@ export default function FileList({ files, filters, onSelect, title }) {
 		);
 	}
 
-	const items = files.map((file, index) => ({
-		label: createFileLabel(file),
-		value: file,
-		key: `file-${index}`
-	}));
-
-	const handleSelect = (item) => {
-		onSelect(item.value);
-	};
 
 	return (
 		<Box flexDirection="column">
 			<Text>
 				<Text color="green">📋 menma-cli</Text> - {title || `ファイル一覧 (${files.length}件)`}
 			</Text>
-			
+
 			{/* Display active filters */}
 			{(filters.project || filters.tag || filters.search) && (
 				<Box flexDirection="column" marginBottom={1}>
@@ -91,7 +131,7 @@ export default function FileList({ files, filters, onSelect, title }) {
 					)}
 				</Box>
 			)}
-			
+
 			{/* Header */}
 			<Box marginBottom={1}>
 				<Text color="cyan">
@@ -103,10 +143,25 @@ export default function FileList({ files, filters, onSelect, title }) {
 					{'-'.repeat(32)} | {'-'.repeat(17)} | {'-'.repeat(22)} | {'-'.repeat(16)}
 				</Text>
 			</Box>
-			
+
 			{/* File selection */}
-			<Text color="yellow">↑↓ で選択, Enter で開く, Ctrl+C で終了</Text>
-			<SelectInput items={items} onSelect={handleSelect} />
+			{showConfirm ? (
+				<Box flexDirection="column">
+					<Text color="red">⚠️  ファイルをゴミ箱に移動しますか？</Text>
+					<Text color="gray">ファイル: {files[selectedIndex]?.title}</Text>
+					<Text color="yellow">Y/Enter で確認, N/Esc でキャンセル</Text>
+				</Box>
+			) : (
+				<Box flexDirection="column">
+					<Text color="yellow">↑↓/j/k で選択, Enter で開く, D でゴミ箱に移動, Ctrl+C で終了</Text>
+					{files.map((file, index) => (
+						<Text key={file.filePath} color={index === selectedIndex ? 'blue' : 'white'}>
+							{index === selectedIndex ? '> ' : '  '}
+							{createFileLabel(file)}
+						</Text>
+					))}
+				</Box>
+			)}
 		</Box>
 	);
 }

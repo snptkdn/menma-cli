@@ -9,7 +9,7 @@
 		"node": ">=16"
 	},
 	"scripts": {
-		"build": "esbuild source/**/*.js --outdir=dist --platform=node --target=es2020 --format=esm --jsx=automatic --jsx-import-source=react --loader:.js=jsx",
+		"build": "esbuild 'source/**/*.js' 'source/*.js' --outdir=dist --platform=node --target=es2022 --format=esm --jsx=automatic --jsx-import-source=react --loader:.js=jsx",
 		"dev": "esbuild source/**/*.js --outdir=dist --platform=node --target=es2020 --format=esm --jsx=automatic --jsx-import-source=react --loader:.js=jsx --watch",
 		"test": "prettier --check . && xo && ava"
 	},

@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { shouldExcludeDirectory } from './trash.js';
 
 /**
  * @typedef {Object} FileInfo
@@ -117,6 +118,10 @@ async function scanDirectory(dirPath, extensions = ['.md', '.js', '.txt']) {
 			const fullPath = path.join(dirPath, entry.name);
 			
 			if (entry.isDirectory()) {
+				// Skip excluded directories (like .trash)
+				if (shouldExcludeDirectory(fullPath)) {
+					continue;
+				}
 				// Recursively scan subdirectories
 				const subFiles = await scanDirectory(fullPath, extensions);
 				files.push(...subFiles);

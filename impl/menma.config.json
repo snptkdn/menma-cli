@@ -1,0 +1,20 @@
+{
+  "baseDir": "/Users/snptkdn/src/menma-cli/impl/test-files",
+  "formats": [
+    {
+      "name": "テスト",
+      "extension": "md",
+      "template": "# {{title}}\n\nProject: {{project}}\nTags: {{tags}}\nDate: {{date}}\n"
+    }
+  ],
+  "editorCommand": [
+    {
+      "ext": "md",
+      "command": "open {{filePath}}"
+    },
+    {
+      "ext": "*",
+      "command": "open {{filePath}}"
+    }
+  ]
+}
