@@ -1,0 +1,1 @@
+- 何かを行う度に、Discordの「ai-development」で簡潔に報告を行うこと。
