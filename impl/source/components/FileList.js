@@ -1,4 +1,3 @@
-import React from 'react';
 import { Text, Box } from 'ink';
 import SelectInput from 'ink-select-input';
 import { padString, truncateString } from '../utils/textWidth.js';

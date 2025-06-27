@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Text, Box } from 'ink';
 import { loadConfig } from './utils/configLoader.js';
 import { generateFile, openFile } from './utils/fileGenerator.js';
