@@ -2,6 +2,7 @@
 import React from 'react';
 import {render} from 'ink';
 import meow from 'meow';
+import path from 'path';
 import App from './app.js';
 
 const cli = meow(
@@ -11,6 +12,7 @@ const cli = meow(
 		  $ menma ls [options]
 		  $ menma open <title>
 		  $ menma recent [count]
+		  $ menma smart [count]
 		  $ menma tags [options]
 		  $ menma stats
 
@@ -27,6 +29,7 @@ const cli = meow(
 		  $ menma ls --project "ProjectX"
 		  $ menma open "Meeting Notes"
 		  $ menma recent 5
+		  $ menma smart 10
 		  $ menma tags
 		  $ menma tags --count
 		  $ menma stats
@@ -60,8 +63,8 @@ const cli = meow(
 
 const command = cli.input[0];
 
-if (!command || !['add', 'ls', 'open', 'recent', 'tags', 'stats'].includes(command)) {
-	console.log('Error: Please specify a valid command: add, ls, open, recent, tags, or stats');
+if (!command || !['add', 'ls', 'open', 'recent', 'smart', 'tags', 'stats'].includes(command)) {
+	console.log('Error: Please specify a valid command: add, ls, open, recent, smart, tags, or stats');
 	cli.showHelp();
 	process.exit(1);
 }
@@ -96,12 +99,15 @@ if (command === 'add') {
 } else if (command === 'recent') {
 	const count = parseInt(cli.input[1]) || 5;
 	appProps = { ...appProps, count };
+} else if (command === 'smart') {
+	const count = parseInt(cli.input[1]) || 10;
+	appProps = { ...appProps, count };
 } else if (command === 'tags') {
 	appProps = { ...appProps, showCount: cli.flags.count };
 }
 
 // Check if command requires interactive mode
-const interactiveCommands = ['add', 'ls', 'recent'];
+const interactiveCommands = ['add', 'ls', 'recent', 'smart'];
 const nonInteractiveCommands = ['open', 'tags', 'stats'];
 
 if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' || !process.stdin.isTTY) {
@@ -204,7 +210,21 @@ if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' 
 					}
 				}
 			} else if (command === 'stats') {
-				// Generate comprehensive statistics
+				const { getAccessStats } = await import('./utils/accessTracker.js');
+				const accessStats = await getAccessStats();
+				
+				console.log('\n📊 Access Statistics:\n');
+				console.log(`Files tracked: ${accessStats.totalFiles}`);
+				console.log(`Total accesses: ${accessStats.totalAccesses}`);
+				
+				if (accessStats.mostAccessed) {
+					const mostAccessed = accessStats.mostAccessed;
+					const fileName = path.basename(mostAccessed.filePath);
+					console.log(`Most accessed: ${fileName} (${mostAccessed.accessCount} times)`);
+				}
+				console.log('');
+				
+				// Generate comprehensive file statistics  
 				const projectStats = new Map();
 				const tagStats = new Map();
 				const formatStats = new Map();
@@ -232,7 +252,7 @@ if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' 
 					if (file.createdAt > thisMonth) recentMonthCount++;
 				});
 				
-				console.log('\n📊 menma-cli Statistics\n');
+				console.log('📊 File Statistics\n');
 				console.log(`Total files: ${files.length}`);
 				console.log(`Files this week: ${recentWeekCount}`);
 				console.log(`Files this month: ${recentMonthCount}`);

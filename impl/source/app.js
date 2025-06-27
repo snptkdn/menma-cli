@@ -3,6 +3,7 @@ import { Text, Box } from 'ink';
 import { loadConfig } from './utils/configLoader.js';
 import { generateFile, openFile } from './utils/fileGenerator.js';
 import { listFiles } from './utils/fileScanner.js';
+import { getSmartSuggestions } from './utils/accessTracker.js';
 import FormatSelector from './components/FormatSelector.js';
 import TagInput from './components/TagInput.js';
 import FileList from './components/FileList.js';
@@ -38,13 +39,15 @@ export default function App({ command, title, project, filters = {}, count = 5 }
 					loadFileList(config);
 				} else if (command === 'recent') {
 					loadRecentFiles(config);
+				} else if (command === 'smart') {
+					loadSmartSuggestions(config);
 				}
 			})
 			.catch(err => {
 				setError(`設定ファイルの読み込みに失敗しました: ${err.message}`);
 				setStep(STEPS.ERROR);
 			});
-	}, [command]);
+	}, [command, count]);
 
 	// Load file list for ls command
 	const loadFileList = async (config) => {
@@ -67,6 +70,21 @@ export default function App({ command, title, project, filters = {}, count = 5 }
 			setStep(STEPS.FILE_LIST);
 		} catch (err) {
 			setError(`最近のファイル取得に失敗しました: ${err.message}`);
+			setStep(STEPS.ERROR);
+		}
+	};
+
+	// Load smart suggestions for smart command
+	const loadSmartSuggestions = async (config) => {
+		try {
+			const fileList = await listFiles(config.baseDir);
+			const suggestions = await getSmartSuggestions(fileList, count);
+			// Extract just the file objects for FileList component
+			const smartFiles = suggestions.map(s => s.file);
+			setFiles(smartFiles);
+			setStep(STEPS.FILE_LIST);
+		} catch (err) {
+			setError(`スマート提案の取得に失敗しました: ${err.message}`);
 			setStep(STEPS.ERROR);
 		}
 	};
@@ -184,9 +202,13 @@ export default function App({ command, title, project, filters = {}, count = 5 }
 			return (
 				<FileList 
 					files={files} 
-					filters={command === 'recent' ? {} : filters}
+					filters={['recent', 'smart'].includes(command) ? {} : filters}
 					onSelect={handleFileSelect}
-					title={command === 'recent' ? `📅 Recent ${count} files` : undefined}
+					title={
+						command === 'recent' ? `📅 Recent ${count} files` :
+						command === 'smart' ? `🧠 Smart suggestions (${count} files)` :
+						undefined
+					}
 				/>
 			);
 

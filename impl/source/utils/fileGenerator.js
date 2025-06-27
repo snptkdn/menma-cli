@@ -1,6 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 import { spawn } from 'child_process';
+import { recordAccess } from './accessTracker.js';
 
 /**
  * Generate a filename based on title and timestamp
@@ -84,6 +85,9 @@ export async function generateFile(fileData, config) {
  * @returns {Promise<void>}
  */
 export async function openFile(filePath, editorCommand) {
+	// Record access before opening
+	await recordAccess(filePath);
+	
 	const command = editorCommand.replace(/\{\{filePath\}\}/g, filePath);
 	const [cmd, ...args] = command.split(' ');
 	
