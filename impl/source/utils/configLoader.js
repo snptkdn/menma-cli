@@ -27,7 +27,16 @@ function getDefaultConfig() {
 				template: '// Title: {{title}}\n// Project: {{project}}\n// Tags: {{tags}}\n// Date: {{date}}\n\n'
 			}
 		],
-		editorCommand: 'code {{filePath}}'
+		editorCommand: [
+			{
+				ext: 'md',
+				command: 'code {{filePath}}'
+			},
+			{
+				ext: '*',
+				command: 'open {{filePath}}'
+			}
+		]
 	};
 }
 
@@ -76,6 +85,35 @@ function resolveBaseDir(baseDir, configDir) {
 }
 
 /**
+ * Load template content from file or return inline template
+ * @param {string} templatePath - Template path or inline template
+ * @param {string} baseDir - Base directory for template resolution
+ * @returns {Promise<string>} Template content
+ */
+async function loadTemplate(templatePath, baseDir) {
+	// If template starts with common template markers, treat as inline
+	if (templatePath.includes('{{') || templatePath.startsWith('#') || templatePath.startsWith('//')) {
+		return templatePath;
+	}
+	
+	// Try to load as file path relative to baseDir
+	let fullPath;
+	if (path.isAbsolute(templatePath)) {
+		fullPath = templatePath;
+	} else {
+		fullPath = path.resolve(baseDir, templatePath);
+	}
+	
+	try {
+		return await fs.readFile(fullPath, 'utf-8');
+	} catch (error) {
+		// If file not found, return the path as inline template
+		console.warn(`Template file not found: ${fullPath}, using as inline template`);
+		return templatePath;
+	}
+}
+
+/**
  * Load configuration from file
  * @returns {Promise<import('../types.js').Config>} Configuration object
  */
@@ -90,7 +128,13 @@ export async function loadConfig() {
 				let config;
 				if (configPath.endsWith('.json')) {
 					const content = await fs.readFile(configPath, 'utf-8');
-					config = JSON.parse(content);
+					try {
+						config = JSON.parse(content);
+					} catch (parseError) {
+						console.warn(`⚠️  設定ファイルの読み込みエラー: ${configPath}`);
+						console.warn(`   JSON構文エラー: ${parseError.message}`);
+						continue;
+					}
 				} else if (configPath.endsWith('.js')) {
 					const { default: importedConfig } = await import(configPath);
 					config = importedConfig;
@@ -100,16 +144,35 @@ export async function loadConfig() {
 					const mergedConfig = { ...defaultConfig, ...config };
 					// Resolve baseDir to absolute path
 					mergedConfig.baseDir = resolveBaseDir(mergedConfig.baseDir, path.dirname(configPath));
+					
+					// Load template files for formats (relative to baseDir)
+					for (const format of mergedConfig.formats) {
+						format.template = await loadTemplate(format.template, mergedConfig.baseDir);
+					}
+					
+					console.log(`✅ 設定ファイルを読み込みました: ${configPath}`);
 					return mergedConfig;
 				}
 			}
 		} catch (error) {
-			// Ignore file not found errors, continue searching
-			continue;
+			// Only ignore file not found errors, log other errors
+			if (error.code === 'ENOENT') {
+				continue;
+			} else {
+				console.warn(`⚠️  設定ファイルの読み込みエラー: ${configPath}`);
+				console.warn(`   エラー: ${error.message}`);
+				continue;
+			}
 		}
 	}
 	
-	// Return default config if no config file found
+	// Warn and return default config if no config file found
+	console.warn('⚠️  設定ファイルが見つかりません。デフォルト設定を使用します。');
+	console.warn('   設定ファイルを作成するには以下のパスのいずれかに menma.config.json を配置してください:');
+	configPaths.slice(0, 3).forEach(path => {
+		console.warn(`   - ${path}`);
+	});
+	console.warn('');
 	return defaultConfig;
 }
 
@@ -122,7 +185,20 @@ export function validateConfig(config) {
 	if (!config || typeof config !== 'object') return false;
 	if (!config.baseDir || typeof config.baseDir !== 'string') return false;
 	if (!Array.isArray(config.formats) || config.formats.length === 0) return false;
-	if (!config.editorCommand || typeof config.editorCommand !== 'string') return false;
+	
+	// Validate editorCommand (can be string or array)
+	if (!config.editorCommand) return false;
+	if (typeof config.editorCommand === 'string') {
+		// Legacy format - still supported
+	} else if (Array.isArray(config.editorCommand)) {
+		// New array format
+		for (const editorConfig of config.editorCommand) {
+			if (!editorConfig.ext || typeof editorConfig.ext !== 'string') return false;
+			if (!editorConfig.command || typeof editorConfig.command !== 'string') return false;
+		}
+	} else {
+		return false;
+	}
 	
 	// Validate each format
 	for (const format of config.formats) {
@@ -132,4 +208,51 @@ export function validateConfig(config) {
 	}
 	
 	return true;
+}
+
+/**
+ * Create a sample configuration file
+ * @param {string} configPath - Path where to create the config file
+ * @returns {Promise<void>}
+ */
+export async function createSampleConfig(configPath) {
+	const sampleConfig = {
+		"baseDir": "menma-files",
+		"formats": [
+			{
+				"name": "議事録",
+				"extension": "md",
+				"template": "template/gizi.md"
+			},
+			{
+				"name": "メモ",
+				"extension": "md", 
+				"template": "template/memo.md"
+			}
+		],
+		"editorCommand": [
+			{
+				"ext": "md",
+				"command": "code {{filePath}}"
+			},
+			{
+				"ext": "*",
+				"command": "open {{filePath}}"
+			}
+		]
+	};
+
+	// Ensure directory exists
+	const configDir = path.dirname(configPath);
+	try {
+		await fs.mkdir(configDir, { recursive: true });
+	} catch (error) {
+		if (error.code !== 'EEXIST') {
+			throw error;
+		}
+	}
+
+	// Write config file
+	await fs.writeFile(configPath, JSON.stringify(sampleConfig, null, 2), 'utf-8');
+	console.log(`✅ サンプル設定ファイルを作成しました: ${configPath}`);
 }

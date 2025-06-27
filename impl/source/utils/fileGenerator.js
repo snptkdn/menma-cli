@@ -79,16 +79,50 @@ export async function generateFile(fileData, config) {
 }
 
 /**
+ * Get appropriate editor command for file extension
+ * @param {string} filePath - Path to file
+ * @param {string|Array} editorCommand - Editor command(s) from config
+ * @returns {string} Appropriate editor command
+ */
+function getEditorCommand(filePath, editorCommand) {
+	// If legacy string format, return as-is
+	if (typeof editorCommand === 'string') {
+		return editorCommand;
+	}
+	
+	// New array format - find matching extension
+	const fileExt = path.extname(filePath).slice(1); // Remove the dot
+	
+	// First try to find exact extension match
+	for (const editorConfig of editorCommand) {
+		if (editorConfig.ext === fileExt) {
+			return editorConfig.command;
+		}
+	}
+	
+	// Fall back to wildcard match
+	for (const editorConfig of editorCommand) {
+		if (editorConfig.ext === '*') {
+			return editorConfig.command;
+		}
+	}
+	
+	// Ultimate fallback (shouldn't happen with proper config)
+	return 'open {{filePath}}';
+}
+
+/**
  * Open file with configured editor
  * @param {string} filePath - Path to file to open
- * @param {string} editorCommand - Editor command template
+ * @param {string|Array} editorCommand - Editor command template or array of commands
  * @returns {Promise<void>}
  */
 export async function openFile(filePath, editorCommand) {
 	// Record access before opening
 	await recordAccess(filePath);
 	
-	const command = editorCommand.replace(/\{\{filePath\}\}/g, filePath);
+	const selectedCommand = getEditorCommand(filePath, editorCommand);
+	const command = selectedCommand.replace(/\{\{filePath\}\}/g, filePath);
 	const [cmd, ...args] = command.split(' ');
 	
 	return new Promise((resolve, reject) => {
