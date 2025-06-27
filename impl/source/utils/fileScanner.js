@@ -14,17 +14,57 @@ import path from 'path';
  */
 
 /**
- * Extract metadata from file content
+ * Extract project from directory structure
+ * @param {string} filePath - Full file path
+ * @param {string} baseDir - Base directory
+ * @returns {string} Project name
+ */
+function extractProjectFromPath(filePath, baseDir) {
+	const relativePath = path.relative(baseDir, filePath);
+	const pathParts = relativePath.split(path.sep);
+	
+	// If file is directly in baseDir, use 'default' as project
+	if (pathParts.length === 1) {
+		return 'default';
+	}
+	
+	// Use the first directory as project name
+	return pathParts[0];
+}
+
+/**
+ * Extract tags from filename
+ * @param {string} fileName - File name
+ * @returns {string[]} Array of tags
+ */
+function extractTagsFromFileName(fileName) {
+	const nameWithoutExt = path.basename(fileName, path.extname(fileName));
+	
+	// Remove timestamp prefix if present
+	const cleanName = nameWithoutExt.replace(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}_/, '');
+	
+	// Extract tags using # delimiter
+	const tagMatches = cleanName.match(/#([^#]+)/g);
+	if (!tagMatches) {
+		return [];
+	}
+	
+	return tagMatches.map(match => match.substring(1).trim()).filter(tag => tag);
+}
+
+/**
+ * Extract metadata from file content and path
  * @param {string} content - File content
  * @param {string} filePath - File path for fallback info
+ * @param {string} baseDir - Base directory
  * @returns {Object} Extracted metadata
  */
-function extractMetadata(content, filePath) {
+function extractMetadata(content, filePath, baseDir) {
 	const lines = content.split('\n').slice(0, 20); // Only check first 20 lines
 	const metadata = {
 		title: '',
-		project: '',
-		tags: [],
+		project: extractProjectFromPath(filePath, baseDir),
+		tags: extractTagsFromFileName(filePath),
 		date: ''
 	};
 
@@ -36,41 +76,15 @@ function extractMetadata(content, filePath) {
 			metadata.title = trimmed.substring(2).trim();
 		}
 		
-		// Extract project
-		const projectMatch = trimmed.match(/(?:Project|プロジェクト):\s*(.+)/i);
-		if (projectMatch) {
-			metadata.project = projectMatch[1].trim();
-		}
-		
-		// Extract tags
-		const tagMatch = trimmed.match(/(?:Tags|タグ):\s*(.+)/i);
-		if (tagMatch) {
-			const tagString = tagMatch[1].trim();
-			if (tagString !== 'なし' && tagString !== 'None') {
-				metadata.tags = tagString.split(',').map(tag => tag.trim()).filter(tag => tag);
-			}
-		}
-		
 		// Extract date
 		const dateMatch = trimmed.match(/(?:Date|作成日|報告日):\s*(.+)/i);
 		if (dateMatch) {
 			metadata.date = dateMatch[1].trim();
 		}
 		
-		// Extract from JS comments
-		const jsProjectMatch = trimmed.match(/\/\/\s*Project:\s*(.+)/i);
-		if (jsProjectMatch) {
-			metadata.project = jsProjectMatch[1].trim();
-		}
-		
-		const jsTagMatch = trimmed.match(/\/\/\s*Tags:\s*(.+)/i);
-		if (jsTagMatch) {
-			const tagString = jsTagMatch[1].trim();
-			metadata.tags = tagString.split(',').map(tag => tag.trim()).filter(tag => tag);
-		}
-		
+		// Extract title from JS comments
 		const jsTitleMatch = trimmed.match(/\/\/\s*Title:\s*(.+)/i);
-		if (jsTitleMatch) {
+		if (jsTitleMatch && !metadata.title) {
 			metadata.title = jsTitleMatch[1].trim();
 		}
 	}
@@ -78,8 +92,10 @@ function extractMetadata(content, filePath) {
 	// Fallback title from filename if not found
 	if (!metadata.title) {
 		const basename = path.basename(filePath, path.extname(filePath));
-		// Remove timestamp prefix if present
-		metadata.title = basename.replace(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}_/, '');
+		// Remove timestamp prefix and tags if present
+		let cleanTitle = basename.replace(/^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}_/, '');
+		cleanTitle = cleanTitle.replace(/#[^#]*#?/g, '').trim();
+		metadata.title = cleanTitle || 'Untitled';
 	}
 
 	return metadata;
@@ -122,13 +138,14 @@ async function scanDirectory(dirPath, extensions = ['.md', '.js', '.txt']) {
 /**
  * Get file information with metadata
  * @param {string} filePath - Path to file
+ * @param {string} baseDir - Base directory for project extraction
  * @returns {Promise<FileInfo|null>} File information or null if error
  */
-async function getFileInfo(filePath) {
+async function getFileInfo(filePath, baseDir) {
 	try {
 		const stats = await fs.stat(filePath);
 		const content = await fs.readFile(filePath, 'utf-8');
-		const metadata = extractMetadata(content, filePath);
+		const metadata = extractMetadata(content, filePath, baseDir);
 		
 		return {
 			filePath,
@@ -209,7 +226,7 @@ export async function listFiles(baseDir, filters = {}) {
 		const filePaths = await scanDirectory(absoluteBaseDir);
 		
 		// Get file information for each file
-		const fileInfoPromises = filePaths.map(getFileInfo);
+		const fileInfoPromises = filePaths.map(filePath => getFileInfo(filePath, absoluteBaseDir));
 		const fileInfos = await Promise.all(fileInfoPromises);
 		
 		// Filter out null results (files that couldn't be read)

@@ -4,15 +4,20 @@ import { execSync } from 'child_process';
 import { recordAccess } from './accessTracker.js';
 
 /**
- * Generate a filename based on title and timestamp
+ * Generate a filename based on title, tags and timestamp
  * @param {string} title - File title
  * @param {string} extension - File extension
+ * @param {string[]} tags - Array of tags
  * @returns {string} Generated filename
  */
-function generateFilename(title, extension) {
+function generateFilename(title, extension, tags = []) {
 	const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 	const sanitizedTitle = title.replace(/[^\w\s-]/g, '').replace(/\s+/g, '_');
-	return `${timestamp}_${sanitizedTitle}.${extension}`;
+	
+	// Add tags in #tag1#tag2 format if present
+	const tagString = tags.length > 0 ? tags.map(tag => `#${tag.replace(/[^\w-]/g, '')}`).join('') : '';
+	
+	return `${timestamp}_${sanitizedTitle}${tagString}.${extension}`;
 }
 
 /**
@@ -64,7 +69,7 @@ async function ensureDirectory(dirPath) {
  * @returns {Promise<string>} Generated file path
  */
 export async function generateFile(fileData, config) {
-	const filename = generateFilename(fileData.title, fileData.format.extension);
+	const filename = generateFilename(fileData.title, fileData.format.extension, fileData.tags);
 	const filePath = generateFilePath(config, fileData.project, filename);
 	const content = renderTemplate(fileData.format.template, fileData);
 	
