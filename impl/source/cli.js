@@ -4,6 +4,7 @@ import {render} from 'ink';
 import meow from 'meow';
 import path from 'path';
 import App from './app.js';
+import { padString, truncateString } from './utils/textWidth.js';
 
 const cli = meow(
 	`
@@ -128,14 +129,14 @@ if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' 
 				if (appProps.filters.tag) console.log(`Tag filter: ${appProps.filters.tag}`);
 				if (appProps.filters.search) console.log(`Search filter: ${appProps.filters.search}`);
 			} else {
-				console.log('Title'.padEnd(32) + ' | ' + 'Project'.padEnd(17) + ' | ' + 'Tags'.padEnd(22) + ' | ' + 'Created');
+				console.log(padString('Title', 32) + ' | ' + padString('Project', 17) + ' | ' + padString('Tags', 22) + ' | ' + 'Created');
 				console.log('-'.repeat(32) + ' | ' + '-'.repeat(17) + ' | ' + '-'.repeat(22) + ' | ' + '-'.repeat(16));
 				
 				files.forEach(file => {
-					const title = (file.title || 'Untitled').substring(0, 30).padEnd(32);
-					const project = (file.project || 'No Project').substring(0, 15).padEnd(17);
+					const title = truncateString(file.title || 'Untitled', 30);
+					const project = truncateString(file.project || 'No Project', 15);
 					const tags = file.tags.length > 0 ? `[${file.tags.slice(0, 2).join(', ')}]` : '[no tags]';
-					const tagsDisplay = tags.substring(0, 20).padEnd(22);
+					const tagsDisplay = truncateString(tags, 20);
 					const date = file.createdAt.toLocaleDateString('ja-JP', {
 						year: 'numeric',
 						month: '2-digit',
@@ -144,7 +145,7 @@ if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' 
 						minute: '2-digit'
 					});
 					
-					console.log(`${title} | ${project} | ${tagsDisplay} | ${date}`);
+					console.log(`${padString(title, 32)} | ${padString(project, 17)} | ${padString(tagsDisplay, 22)} | ${date}`);
 				});
 			}
 		} catch (error) {
@@ -196,7 +197,7 @@ if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' 
 					if (appProps.showCount) {
 						console.log(`\n🏷️  Tag usage statistics (${tagStats.size} unique tags):\n`);
 						sortedTags.forEach(([tag, count]) => {
-							console.log(`${tag.padEnd(20)} ${count} files`);
+							console.log(`${padString(tag, 20)} ${count} files`);
 						});
 					} else {
 						console.log(`\n🏷️  All tags (${tagStats.size} unique):\n`);
@@ -205,7 +206,7 @@ if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' 
 						const columns = 3;
 						for (let i = 0; i < tags.length; i += columns) {
 							const row = tags.slice(i, i + columns);
-							console.log(row.map(tag => tag.padEnd(20)).join(''));
+							console.log(row.map(tag => padString(tag, 20)).join(''));
 						}
 					}
 				}

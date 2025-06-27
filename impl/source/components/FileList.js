@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, Box } from 'ink';
 import SelectInput from 'ink-select-input';
+import { padString, truncateString } from '../utils/textWidth.js';
 
 /**
  * Format date for display
@@ -17,16 +18,6 @@ function formatDate(date) {
 	});
 }
 
-/**
- * Truncate string to fit in specified width
- * @param {string} str - String to truncate
- * @param {number} maxWidth - Maximum width
- * @returns {string} Truncated string
- */
-function truncate(str, maxWidth) {
-	if (str.length <= maxWidth) return str;
-	return str.substring(0, maxWidth - 3) + '...';
-}
 
 /**
  * Create display label for file item
@@ -34,14 +25,14 @@ function truncate(str, maxWidth) {
  * @returns {string} Display label
  */
 function createFileLabel(file) {
-	const title = truncate(file.title || 'Untitled', 30);
-	const project = truncate(file.project || 'No Project', 15);
+	const title = truncateString(file.title || 'Untitled', 30);
+	const project = truncateString(file.project || 'No Project', 15);
 	const tags = file.tags.length > 0 ? file.tags.slice(0, 2).join(', ') : 'no tags';
-	const tagsDisplay = truncate(`[${tags}]`, 20);
+	const tagsDisplay = truncateString(`[${tags}]`, 20);
 	const date = formatDate(file.createdAt);
 	
 	// Format: "Title                    | Project     | [tags]         | 2023/12/01 10:30"
-	return `${title.padEnd(32)} | ${project.padEnd(17)} | ${tagsDisplay.padEnd(22)} | ${date}`;
+	return `${padString(title, 32)} | ${padString(project, 17)} | ${padString(tagsDisplay, 22)} | ${date}`;
 }
 
 /**
@@ -105,7 +96,7 @@ export default function FileList({ files, filters, onSelect, title }) {
 			{/* Header */}
 			<Box marginBottom={1}>
 				<Text color="cyan">
-					{'Title'.padEnd(32)} | {'Project'.padEnd(17)} | {'Tags'.padEnd(22)} | {'Created'}
+					{padString('Title', 32)} | {padString('Project', 17)} | {padString('Tags', 22)} | {'Created'}
 				</Text>
 			</Box>
 			<Box marginBottom={1}>
