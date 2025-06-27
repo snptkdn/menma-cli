@@ -50,8 +50,9 @@ function createFileLabel(file) {
  * @param {import('../utils/fileScanner.js').FileInfo[]} props.files - Array of file information
  * @param {Object} props.filters - Active filters
  * @param {function(import('../utils/fileScanner.js').FileInfo): void} props.onSelect - Callback when file is selected
+ * @param {string} [props.title] - Custom title for the list
  */
-export default function FileList({ files, filters, onSelect }) {
+export default function FileList({ files, filters, onSelect, title }) {
 	if (files.length === 0) {
 		return (
 			<Box flexDirection="column">
@@ -82,7 +83,7 @@ export default function FileList({ files, filters, onSelect }) {
 	return (
 		<Box flexDirection="column">
 			<Text>
-				<Text color="green">📋 menma-cli</Text> - ファイル一覧 ({files.length}件)
+				<Text color="green">📋 menma-cli</Text> - {title || `ファイル一覧 (${files.length}件)`}
 			</Text>
 			
 			{/* Display active filters */}

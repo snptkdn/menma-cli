@@ -18,7 +18,7 @@ const STEPS = {
 	ERROR: 'error'
 };
 
-export default function App({ command, title, project, filters = {} }) {
+export default function App({ command, title, project, filters = {}, count = 5 }) {
 	const [step, setStep] = useState(STEPS.LOADING);
 	const [config, setConfig] = useState(null);
 	const [selectedFormat, setSelectedFormat] = useState(null);
@@ -36,6 +36,8 @@ export default function App({ command, title, project, filters = {} }) {
 					setStep(STEPS.FORMAT_SELECTION);
 				} else if (command === 'ls') {
 					loadFileList(config);
+				} else if (command === 'recent') {
+					loadRecentFiles(config);
 				}
 			})
 			.catch(err => {
@@ -52,6 +54,19 @@ export default function App({ command, title, project, filters = {} }) {
 			setStep(STEPS.FILE_LIST);
 		} catch (err) {
 			setError(`ファイル一覧の取得に失敗しました: ${err.message}`);
+			setStep(STEPS.ERROR);
+		}
+	};
+
+	// Load recent files for recent command
+	const loadRecentFiles = async (config) => {
+		try {
+			const fileList = await listFiles(config.baseDir);
+			const recentFiles = fileList.slice(0, count);
+			setFiles(recentFiles);
+			setStep(STEPS.FILE_LIST);
+		} catch (err) {
+			setError(`最近のファイル取得に失敗しました: ${err.message}`);
 			setStep(STEPS.ERROR);
 		}
 	};
@@ -169,8 +184,9 @@ export default function App({ command, title, project, filters = {} }) {
 			return (
 				<FileList 
 					files={files} 
-					filters={filters} 
-					onSelect={handleFileSelect} 
+					filters={command === 'recent' ? {} : filters}
+					onSelect={handleFileSelect}
+					title={command === 'recent' ? `📅 Recent ${count} files` : undefined}
 				/>
 			);
 

@@ -101,8 +101,8 @@ if (command === 'add') {
 }
 
 // Check if command requires interactive mode
-const interactiveCommands = ['add', 'ls'];
-const nonInteractiveCommands = ['open', 'recent', 'tags', 'stats'];
+const interactiveCommands = ['add', 'ls', 'recent'];
+const nonInteractiveCommands = ['open', 'tags', 'stats'];
 
 if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' || !process.stdin.isTTY) {
 	// Non-interactive mode
@@ -145,7 +145,7 @@ if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' 
 			console.error(`Error: ${error.message}`);
 		}
 		process.exit(0);
-	} else if (command === 'open' || command === 'recent' || command === 'tags' || command === 'stats') {
+	} else if (command === 'open' || command === 'tags' || command === 'stats') {
 		const { loadConfig } = await import('./utils/configLoader.js');
 		const { listFiles } = await import('./utils/fileScanner.js');
 		const { openFile } = await import('./utils/fileGenerator.js');
@@ -172,23 +172,6 @@ if (nonInteractiveCommands.includes(command) || process.env.NODE_ENV === 'test' 
 						console.log(`${index + 1}. ${file.title} (${file.project})`);
 					});
 					console.log('\nPlease be more specific.');
-				}
-			} else if (command === 'recent') {
-				const recentFiles = files.slice(0, appProps.count);
-				console.log(`\n📅 Recent ${appProps.count} files:\n`);
-				
-				if (recentFiles.length === 0) {
-					console.log('📂 No files found.');
-				} else {
-					recentFiles.forEach((file, index) => {
-						const date = file.createdAt.toLocaleDateString('ja-JP', {
-							month: '2-digit',
-							day: '2-digit',
-							hour: '2-digit',
-							minute: '2-digit'
-						});
-						console.log(`${index + 1}. ${file.title} (${file.project}) - ${date}`);
-					});
 				}
 			} else if (command === 'tags') {
 				// Collect all tags and their usage counts
