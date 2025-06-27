@@ -9,19 +9,27 @@ const cli = meow(
 		Usage
 		  $ menma add <title> <project>
 		  $ menma ls [options]
+		  $ menma open <title>
+		  $ menma recent [count]
+		  $ menma tags [options]
+		  $ menma stats
 
 		Options
 			--help       Show this help
 			--project    Filter by project name
 			--tag        Filter by tag
 			--search     Search in file content
+			--count      Show tag usage counts
 
 		Examples
 		  $ menma add "Meeting Notes" "ProjectX"
 		  $ menma ls
 		  $ menma ls --project "ProjectX"
-		  $ menma ls --tag "urgent"
-		  $ menma ls --search "keyword"
+		  $ menma open "Meeting Notes"
+		  $ menma recent 5
+		  $ menma tags
+		  $ menma tags --count
+		  $ menma stats
 	`,
 	{
 		importMeta: import.meta,
@@ -41,6 +49,10 @@ const cli = meow(
 			search: {
 				type: 'string',
 				alias: 's'
+			},
+			count: {
+				type: 'boolean',
+				alias: 'c'
 			}
 		}
 	},
@@ -48,8 +60,8 @@ const cli = meow(
 
 const command = cli.input[0];
 
-if (!command || !['add', 'ls'].includes(command)) {
-	console.log('Error: Please specify either "add" or "ls" command');
+if (!command || !['add', 'ls', 'open', 'recent', 'tags', 'stats'].includes(command)) {
+	console.log('Error: Please specify a valid command: add, ls, open, recent, tags, or stats');
 	cli.showHelp();
 	process.exit(1);
 }
@@ -73,6 +85,19 @@ if (command === 'add') {
 			search: cli.flags.search
 		}
 	};
+} else if (command === 'open') {
+	if (cli.input.length < 2) {
+		console.log('Error: Please specify a file title to open');
+		cli.showHelp();
+		process.exit(1);
+	}
+	const [, title] = cli.input;
+	appProps = { ...appProps, title };
+} else if (command === 'recent') {
+	const count = parseInt(cli.input[1]) || 5;
+	appProps = { ...appProps, count };
+} else if (command === 'tags') {
+	appProps = { ...appProps, showCount: cli.flags.count };
 }
 
 // For testing purposes, bypass TTY check temporarily
@@ -117,8 +142,156 @@ if (process.env.NODE_ENV === 'test' || !process.stdin.isTTY) {
 			console.error(`Error: ${error.message}`);
 		}
 		process.exit(0);
+	} else if (command === 'open' || command === 'recent' || command === 'tags' || command === 'stats') {
+		const { loadConfig } = await import('./utils/configLoader.js');
+		const { listFiles } = await import('./utils/fileScanner.js');
+		const { openFile } = await import('./utils/fileGenerator.js');
+		
+		try {
+			const config = await loadConfig();
+			const files = await listFiles(config.baseDir);
+			
+			if (command === 'open') {
+				const searchTitle = appProps.title.toLowerCase();
+				const matchingFiles = files.filter(file => 
+					file.title.toLowerCase().includes(searchTitle)
+				);
+				
+				if (matchingFiles.length === 0) {
+					console.log(`📂 No files found with title containing: "${appProps.title}"`);
+					process.exit(1);
+				} else if (matchingFiles.length === 1) {
+					console.log(`📂 Opening: ${matchingFiles[0].title}`);
+					await openFile(matchingFiles[0].filePath, config.editorCommand);
+				} else {
+					console.log(`\n🔍 Multiple files found for "${appProps.title}":\n`);
+					matchingFiles.forEach((file, index) => {
+						console.log(`${index + 1}. ${file.title} (${file.project})`);
+					});
+					console.log('\nPlease be more specific.');
+				}
+			} else if (command === 'recent') {
+				const recentFiles = files.slice(0, appProps.count);
+				console.log(`\n📅 Recent ${appProps.count} files:\n`);
+				
+				if (recentFiles.length === 0) {
+					console.log('📂 No files found.');
+				} else {
+					recentFiles.forEach((file, index) => {
+						const date = file.createdAt.toLocaleDateString('ja-JP', {
+							month: '2-digit',
+							day: '2-digit',
+							hour: '2-digit',
+							minute: '2-digit'
+						});
+						console.log(`${index + 1}. ${file.title} (${file.project}) - ${date}`);
+					});
+				}
+			} else if (command === 'tags') {
+				// Collect all tags and their usage counts
+				const tagStats = new Map();
+				files.forEach(file => {
+					file.tags.forEach(tag => {
+						tagStats.set(tag, (tagStats.get(tag) || 0) + 1);
+					});
+				});
+				
+				if (tagStats.size === 0) {
+					console.log('📂 No tags found.');
+				} else {
+					const sortedTags = Array.from(tagStats.entries()).sort((a, b) => b[1] - a[1]);
+					
+					if (appProps.showCount) {
+						console.log(`\n🏷️  Tag usage statistics (${tagStats.size} unique tags):\n`);
+						sortedTags.forEach(([tag, count]) => {
+							console.log(`${tag.padEnd(20)} ${count} files`);
+						});
+					} else {
+						console.log(`\n🏷️  All tags (${tagStats.size} unique):\n`);
+						const tags = sortedTags.map(([tag]) => tag);
+						// Display tags in columns
+						const columns = 3;
+						for (let i = 0; i < tags.length; i += columns) {
+							const row = tags.slice(i, i + columns);
+							console.log(row.map(tag => tag.padEnd(20)).join(''));
+						}
+					}
+				}
+			} else if (command === 'stats') {
+				// Generate comprehensive statistics
+				const projectStats = new Map();
+				const tagStats = new Map();
+				const formatStats = new Map();
+				const today = new Date();
+				const thisWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+				const thisMonth = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+				
+				let recentWeekCount = 0;
+				let recentMonthCount = 0;
+				
+				files.forEach(file => {
+					// Project stats
+					projectStats.set(file.project, (projectStats.get(file.project) || 0) + 1);
+					
+					// Tag stats
+					file.tags.forEach(tag => {
+						tagStats.set(tag, (tagStats.get(tag) || 0) + 1);
+					});
+					
+					// Format stats
+					formatStats.set(file.extension, (formatStats.get(file.extension) || 0) + 1);
+					
+					// Time-based stats
+					if (file.createdAt > thisWeek) recentWeekCount++;
+					if (file.createdAt > thisMonth) recentMonthCount++;
+				});
+				
+				console.log('\n📊 menma-cli Statistics\n');
+				console.log(`Total files: ${files.length}`);
+				console.log(`Files this week: ${recentWeekCount}`);
+				console.log(`Files this month: ${recentMonthCount}`);
+				console.log(`Unique projects: ${projectStats.size}`);
+				console.log(`Unique tags: ${tagStats.size}`);
+				
+				// Top projects
+				if (projectStats.size > 0) {
+					console.log('\n📁 Top Projects:');
+					const topProjects = Array.from(projectStats.entries())
+						.sort((a, b) => b[1] - a[1])
+						.slice(0, 5);
+					topProjects.forEach(([project, count]) => {
+						console.log(`  ${project}: ${count} files`);
+					});
+				}
+				
+				// Top tags
+				if (tagStats.size > 0) {
+					console.log('\n🏷️  Top Tags:');
+					const topTags = Array.from(tagStats.entries())
+						.sort((a, b) => b[1] - a[1])
+						.slice(0, 5);
+					topTags.forEach(([tag, count]) => {
+						console.log(`  ${tag}: ${count} files`);
+					});
+				}
+				
+				// File formats
+				if (formatStats.size > 0) {
+					console.log('\n📄 File Formats:');
+					const sortedFormats = Array.from(formatStats.entries())
+						.sort((a, b) => b[1] - a[1]);
+					sortedFormats.forEach(([format, count]) => {
+						const formatName = format || 'no extension';
+						console.log(`  ${formatName}: ${count} files`);
+					});
+				}
+			}
+		} catch (error) {
+			console.error(`Error: ${error.message}`);
+		}
+		process.exit(0);
 	} else {
-		console.error('Error: Interactive mode not available. Only "ls" command supported in non-TTY mode.');
+		console.error('Error: Interactive mode not available. Only "ls", "open", "recent", "tags", and "stats" commands supported in non-TTY mode.');
 		process.exit(1);
 	}
 } else {
