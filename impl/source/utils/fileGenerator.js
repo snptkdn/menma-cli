@@ -1,6 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
-import { spawn } from 'child_process';
+import { execSync } from 'child_process';
 import { recordAccess } from './accessTracker.js';
 
 /**
@@ -123,22 +123,18 @@ export async function openFile(filePath, editorCommand) {
 	
 	const selectedCommand = getEditorCommand(filePath, editorCommand);
 	const command = selectedCommand.replace(/\{\{filePath\}\}/g, filePath);
-	const [cmd, ...args] = command.split(' ');
 	
-	return new Promise((resolve, reject) => {
-		const child = spawn(cmd, args, {
+	try {
+		// Execute command synchronously with stdio inheritance for proper terminal interaction
+		execSync(command, { 
 			stdio: 'inherit',
-			detached: true
+			shell: true 
 		});
-		
-		child.on('error', (error) => {
-			console.error(`Failed to open file: ${error.message}`);
-			reject(error);
-		});
-		
-		child.on('spawn', () => {
-			child.unref();
-			resolve();
-		});
-	});
+	} catch (error) {
+		// Only throw error if command actually failed (non-zero exit code)
+		// Some editors like vim may exit with non-zero codes in certain situations
+		if (error.status !== 0 && error.signal === null) {
+			throw new Error(`Failed to open file with command "${command}": ${error.message}`);
+		}
+	}
 }
